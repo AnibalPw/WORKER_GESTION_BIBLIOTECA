@@ -17,4 +17,5 @@ Para restaurar desde el script SQL:
    - Abrir SSMS y crear una nueva base de datos.
    - Ejecutar el script `BD/WCS_BIBLIOTECA_SCRIPT.sql` en la base de datos creada.
 
-Ejecute el proyecto desde Visual Studio 2022 o VS Code y observe como se modifica la BD 
+## Ejecute el proyecto
+Ejecute el proyecto desde Visual Studio 2022 o VS Code y observe como se modifica la BD (actualmente sólo modifica la información en la primera ejecución)
