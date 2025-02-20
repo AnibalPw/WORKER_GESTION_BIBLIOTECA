@@ -3,7 +3,7 @@
 El proyecto consiste en el desarrollo de un sistema de gestión bibliotecaria que implementa un worker en C# para la automatización de procesos críticos relacionados con el control de préstamos, devoluciones y gestión de inventario de libros.
 
 ## Configuración appsetting
- - Renombre el archivo appsetting.Development.json por appsetting.json
+ - Renombre el archivo appsetting.example.json por appsetting.json
  - Configurar el ConnectionString del appsetting.json con su conexión de base de datos
 ```sh
 Opción 1:
