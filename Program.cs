@@ -14,7 +14,7 @@ using WORKER_GESTION_BIBLIOTECA.Repositories;
 var builder = Host.CreateApplicationBuilder(args);
 
 // Registrar servicios
-builder.Services.AddSingleton<IPrestamoRepository, PrestamoRepository>(); // Aquí registras tu repositorio
+builder.Services.AddSingleton<IPrestamoRepository, PrestamoRepository>(); 
 builder.Services.AddHostedService<Worker>();
 
 // Registrar logger
