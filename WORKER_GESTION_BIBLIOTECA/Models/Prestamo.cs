@@ -20,4 +20,12 @@ namespace WORKER_GESTION_BIBLIOTECA.Models
         public Usuario Usuario { get; set; }
     }
 
+    //public class InfoDevolucion
+    //{
+    //    public int IdPrestamo { get; set; }
+    //    public string TituloLibro { get; set; }
+    //    public string NombreUsuario { get; set; }
+    //    public DateTime FechaDevolucion { get; set; }
+    //    public int CopiasDisponibles { get; set; }
+    //}
 }

@@ -27,8 +27,8 @@ public class BibliotecaTest
                 .AddJsonFile("appsettings.json") // Carga la configuración desde el archivo
                 .Build();
 
-        // Obtener la cadena de conexión directamente
-        _connectionString = _configurationString.GetConnectionString("WCS_CONEXION"); //WCS_CONEXION
+        // Cadena de conexión a BD
+        _connectionString = _configurationString.GetConnectionString("WCS_CONEXION");
 
         var logger = new Mock<ILogger<PrestamoRepository>>().Object;
         _tokenSource = new CancellationTokenSource();
@@ -193,6 +193,215 @@ public class BibliotecaTest
                     "Todos los préstamos vencidos deben estar actualizados a estado 'R'");
             }
         }
+    }
+
+
+    /// <summary>
+    /// CP-003-RegistroTrazabilidad -> Verificar registro de trazabilidad en la base de datos
+    /// </summary>
+    [TestMethod]
+    [Description("CP-003-RegistroTrazabilidad: Registro en Trazabilidad de operaciones")]
+    public async Task RegistrarTrazabilidadTest()
+    {
+        // Arrange
+        var prestamosVencidos = await _prestamoRepository.ObtenerPrestamosVencidosAsync();
+        Assert.IsTrue(prestamosVencidos.Any(), "Deben existir préstamos vencidos para la prueba");
+
+        // Act - Limpiar tabla de trazabilidad para tener un estado inicial conocido
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "DELETE FROM Trazabilidad";
+                await command.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Se registrar la trazabilidad para cada préstamo vencido
+        foreach (var prestamo in prestamosVencidos)
+        {
+            //Se vuelve a actualizar el estado en R ya que las pruebas se renician con el método  PrepararDatosDePrueba()
+            var updateEstadoPrestamo = await _prestamoRepository.ActualizarEstadoPrestamoAsync(prestamo.idPrestamo, 'R');
+
+            //Registrar en trazabilidad
+            string detalles = $"Libro '{prestamo.Libro.titulo}' bajo préstamo al usuario '{prestamo.Usuario.nombre} {prestamo.Usuario.primerApellido}' marcado como retrasado";
+
+            var resultado = await _prestamoRepository.RegistrarTrazabilidadAsync(prestamo.idPrestamo, "Retraso", detalles);
+            Assert.IsTrue(resultado, $"El registro de trazabilidad para el préstamo {prestamo.idPrestamo} debería ser exitoso");
+        }
+
+        // Assert - Verificar que se registró correctamente usando el nuevo método
+        var verificacion = await _prestamoRepository.VerificarTrazabilidadAsync("Retraso");
+
+        // Verificar el conteo
+        Assert.AreEqual(prestamosVencidos.Count(), verificacion.TotalRegistros,
+            "Debe existir un registro de trazabilidad por cada préstamo procesado");
+
+        // Verificar el detalle del último registro
+        Assert.IsNotNull(verificacion.UltimoRegistro, "Debe existir al menos un registro de trazabilidad");
+
+        Assert.IsTrue(verificacion.UltimoRegistro.Detalles.Contains("Libro"),
+            "Los detalles deben incluir información del libro");
+
+        Assert.IsTrue(verificacion.UltimoRegistro.Detalles.Contains("usuario"),
+            "Los detalles deben incluir información del usuario");
+
+        Assert.IsTrue((DateTime.Now - verificacion.UltimoRegistro.FechaOperacion).TotalMinutes < 5,
+            "La fecha de operación debe ser cercana al momento actual");
+
+        // Verificaciones adicionales con los datos enriquecidos
+        Assert.IsFalse(string.IsNullOrEmpty(verificacion.UltimoRegistro.LibroTitulo),
+            "El título del libro debe estar disponible");
+        Assert.IsFalse(string.IsNullOrEmpty(verificacion.UltimoRegistro.UsuarioNombre),
+            "El nombre del usuario debe estar disponible");
+    }
+
+    /// <summary>
+    /// CP-004-ActualizacionInventario -> Actualización automática del inventario(disponibilidad) de libros
+    /// </summary>
+    [TestMethod]
+    [Description("CP-004-ActualizacionInventario: Actualización automática del inventario de libros")]
+    public async Task ActualizarInventarioTest()
+    {
+
+        // Arrange - Obtener estado inicial de algunos libros
+        Dictionary<int, int> copiasInicialesPorLibro = new Dictionary<int, int>();
+
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT idLibro, CopiasDisponibles FROM LIBRO WHERE idLibro IN (1, 2, 3)";
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        int idLibro = (int)reader.GetInt64(0);
+                        int copias = reader.GetInt32(1);
+                        copiasInicialesPorLibro[idLibro] = copias;
+                    }
+                }
+            }
+        }
+
+        Assert.IsTrue(copiasInicialesPorLibro.Count == 3, "Deben existir 3 libros para la prueba");
+
+        // Act - Obtener préstamos activos y ejecutar devolución usando el RegistrarDevolucionesAsync
+        var prestamosParaDevolver = new List<int>();
+
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = @"
+                SELECT TOP 1 idLibro FROM PRESTAMO WHERE idLibro = 1 AND Estado = 'A'
+                UNION ALL
+                SELECT TOP 1 idLibro FROM PRESTAMO WHERE idLibro = 2 AND Estado = 'A'
+                UNION ALL
+                SELECT TOP 1 idLibro FROM PRESTAMO WHERE idLibro = 3 AND Estado = 'A'
+            ";
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        prestamosParaDevolver.Add((int)reader.GetInt64(0));
+                    }
+                }
+            }
+        }
+
+        // Ejecutar la devolución para cada préstamo usando el método RegistrarDevolucionesAsync
+        foreach (var idPrestamo in prestamosParaDevolver)
+        {
+            await _prestamoRepository.RegistrarDevolucionesAsync(idPrestamo);
+        }
+
+
+        // Assert - Verificar que el inventario se actualizó
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync();
+            using (var command = connection.CreateCommand())
+            {
+                foreach (var libroId in copiasInicialesPorLibro.Keys)
+                {
+                    command.CommandText = "SELECT copiasDisponibles FROM LIBRO WHERE idLibro = @IdLibro";
+                    command.Parameters.Clear();
+                    command.Parameters.AddWithValue("@IdLibro", libroId);
+
+                    var copiasActuales = (int)await command.ExecuteScalarAsync();
+                    var copiasIniciales = copiasInicialesPorLibro[libroId];
+
+                    // Verificar si el libro fue devuelto (incremento en copias)
+                    command.CommandText = @"
+                    SELECT COUNT(*) FROM Trazabilidad t
+                    JOIN PRESTAMO p ON t.idPrestamo = p.idPrestamo
+                    WHERE p.idLibro = @IdLibro AND t.tipoOperacion = 'Devolución'
+                ";
+                    var devolucionesRegistradas = (int)await command.ExecuteScalarAsync();
+
+                    Assert.AreEqual(copiasIniciales + devolucionesRegistradas, copiasActuales,
+                        $"El libro {libroId} debería tener {copiasIniciales + devolucionesRegistradas} copias disponibles");
+                }
+
+                // Verificar que se registró en trazabilidad
+                command.CommandText = "SELECT COUNT(*) FROM Trazabilidad WHERE tipoOperacion = 'Devolución'";
+                command.Parameters.Clear();
+                var contadorDevolucionesTrazabilidad = (int)await command.ExecuteScalarAsync();
+
+                Assert.IsTrue(contadorDevolucionesTrazabilidad > 0,
+                    "Se deben registrar las devoluciones en la tabla de trazabilidad");
+            }
+        }
+
+    }
+
+
+
+    /// <summary>
+    /// CP-005-ReportesDiarios-> Generación automática de reportes diarios
+    /// </summary>
+    [TestMethod]
+    [Description("CP-005-ReportesDiarios: Generación automática de reportes diarios")]
+    public async Task GenerarReporteDiarioTest()
+    {
+        // Arrange - Limpiar y poblar datos de prueba
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "DELETE FROM Trazabilidad";
+                await command.ExecuteNonQueryAsync();
+
+                command.CommandText = @"
+                INSERT INTO Trazabilidad (idPrestamo, tipoOperacion, detalles, fechaOperacion)
+                SELECT TOP 3 idPrestamo, 'Préstamo', 'Préstamo realizado', GETDATE() FROM PRESTAMO WHERE estado = 'A';
+
+                INSERT INTO Trazabilidad (idPrestamo, tipoOperacion, detalles, fechaOperacion)
+                SELECT TOP 2 idPrestamo, 'Devolución', 'Devolución realizada', GETDATE() FROM PRESTAMO WHERE estado = 'A';
+
+                INSERT INTO Trazabilidad (idPrestamo, tipoOperacion, detalles, fechaOperacion)
+                SELECT TOP 4 idPrestamo, 'Retraso', 'Préstamo marcado como retrasado', GETDATE() FROM PRESTAMO WHERE fechaDevolucionEsperada < GETDATE();
+            ";
+                await command.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Act - Ejecutar el procedimiento almacenado usando el método GenerarReporteDiarioAsync
+        var reporteOperaciones = await _prestamoRepository.GenerarReporteDiarioAsync();
+
+        // Assert - Validar los resultados
+        Assert.IsTrue(reporteOperaciones.ContainsKey("Préstamo"), "El reporte debe incluir préstamos");
+        Assert.IsTrue(reporteOperaciones.ContainsKey("Devolución"), "El reporte debe incluir devoluciones");
+        Assert.IsTrue(reporteOperaciones.ContainsKey("Retraso"), "El reporte debe incluir retrasos");
+
+        Assert.AreEqual(3, reporteOperaciones["Préstamo"], "Debe haber 3 préstamos registrados");
+        Assert.AreEqual(2, reporteOperaciones["Devolución"], "Debe haber 2 devoluciones registradas");
+        Assert.AreEqual(4, reporteOperaciones["Retraso"], "Debe haber 4 retrasos registrados");
     }
 
     #endregion

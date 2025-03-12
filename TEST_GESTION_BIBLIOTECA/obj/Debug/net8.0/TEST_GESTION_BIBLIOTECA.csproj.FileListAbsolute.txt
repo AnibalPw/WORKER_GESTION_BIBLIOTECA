@@ -256,3 +256,4 @@ D:\Escritorio\Universidad\Licenciatura\CALIDAD DE SOFTWARE I\Proyecto\codigo y b
 D:\Escritorio\Universidad\Licenciatura\CALIDAD DE SOFTWARE I\Proyecto\codigo y bd\Solucion\TEST_GESTION_BIBLIOTECA\obj\Debug\net8.0\TEST_GESTION_BIBLIOTECA.pdb
 D:\Escritorio\Universidad\Licenciatura\CALIDAD DE SOFTWARE I\Proyecto\codigo y bd\Solucion\TEST_GESTION_BIBLIOTECA\obj\Debug\net8.0\TEST_GESTION_BIBLIOTECA.genruntimeconfig.cache
 D:\Escritorio\Universidad\Licenciatura\CALIDAD DE SOFTWARE I\Proyecto\codigo y bd\Solucion\TEST_GESTION_BIBLIOTECA\obj\Debug\net8.0\ref\TEST_GESTION_BIBLIOTECA.dll
+D:\Escritorio\Universidad\Licenciatura\CALIDAD DE SOFTWARE I\Proyecto\codigo y bd\Solucion\TEST_GESTION_BIBLIOTECA\obj\Debug\net8.0\TEST_GESTION_BIBLIOTECA.sourcelink.json
