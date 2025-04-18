@@ -35,7 +35,7 @@ public class BibliotecaTest
         _prestamoRepository = new PrestamoRepository(_configurationString, logger);
 
         // Limpiar y preparar datos de prueba
-        PrepararDatosDePrueba();
+        //PrepararDatosDePrueba();
     }
 
 
