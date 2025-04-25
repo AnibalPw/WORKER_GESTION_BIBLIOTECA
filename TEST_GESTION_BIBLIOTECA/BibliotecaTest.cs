@@ -12,10 +12,7 @@ public class BibliotecaTest
 
     private readonly IConfiguration _configurationString;
     private CancellationTokenSource _tokenSource;
-
-    private ILogger<PrestamoRepository> _logger;
     private readonly IPrestamoRepository _prestamoRepository;
-
     private string _connectionString;
 
 
@@ -35,7 +32,7 @@ public class BibliotecaTest
         _prestamoRepository = new PrestamoRepository(_configurationString, logger);
 
         // Limpiar y preparar datos de prueba
-        //PrepararDatosDePrueba();
+        PrepararDatosDePrueba();
     }
 
 
@@ -51,16 +48,16 @@ public class BibliotecaTest
             using (var command = connection.CreateCommand())
             {
                 command.CommandText = @"
-                        DELETE FROM TRAZABILIDAD;
-                        DELETE FROM PRESTAMO;
-                        DELETE FROM USUARIO;
-                        DELETE FROM LIBRO;
+                        DELETE FROM WCS_GESTION_BIBLIOTECA..TRAZABILIDAD;
+                        DELETE FROM WCS_GESTION_BIBLIOTECA..PRESTAMO;
+                        DELETE FROM WCS_GESTION_BIBLIOTECA..USUARIO;
+                        DELETE FROM WCS_GESTION_BIBLIOTECA..LIBRO;
 
                         -- Reiniciar identity si es necesario
-                        DBCC CHECKIDENT ('PRESTAMO', RESEED, 0);
-                        DBCC CHECKIDENT ('USUARIO', RESEED, 0);
-                        DBCC CHECKIDENT ('LIBRO', RESEED, 0);
-                        DBCC CHECKIDENT ('TRAZABILIDAD', RESEED, 0);
+                        DBCC CHECKIDENT ('WCS_GESTION_BIBLIOTECA..PRESTAMO', RESEED, 0);
+                        DBCC CHECKIDENT ('WCS_GESTION_BIBLIOTECA..USUARIO', RESEED, 0);
+                        DBCC CHECKIDENT ('WCS_GESTION_BIBLIOTECA..LIBRO', RESEED, 0);
+                        DBCC CHECKIDENT ('WCS_GESTION_BIBLIOTECA..TRAZABILIDAD', RESEED, 0);
                     ";
                 command.ExecuteNonQuery();
 
@@ -114,13 +111,28 @@ public class BibliotecaTest
             }
         }
     }
+
     #endregion --Fin Datos de prueba --
+
+    //[TestInitialize]
+    //public void Setup()
+    //{
+    //    // Inicializar un nuevo token si fue cancelado
+    //    if (_tokenSource.IsCancellationRequested)
+    //    {
+    //        _tokenSource.Dispose();
+    //        _tokenSource = new CancellationTokenSource();
+    //    }
+
+    //    // Preparar datos frescos para cada prueba
+    //    PrepararDatosDePrueba();
+    //}
 
     [TestCleanup]
     public void Cleanup()
     {
+        _tokenSource.Cancel();
         _tokenSource.Dispose();
-            _tokenSource = new CancellationTokenSource();
     }
 
     #region -- Métodos --
@@ -128,10 +140,11 @@ public class BibliotecaTest
     /// CP-001-PrestamosVencidos -> Debe identificar sólo préstamos vencidos
     /// </summary>
     [TestMethod]
+    [DoNotParallelize] //evita la ejecución paralela
     [Description("CP-001-PrestamosVencidos: Verificación de identificación de préstamos vencidos")]
     public async Task ObtenerPrestamosVencidosTest()
     {
-
+   
         // Act
         var resultado = await _prestamoRepository.ObtenerPrestamosVencidosAsync();
         var prestamosVencidos = resultado.ToList();
@@ -163,9 +176,11 @@ public class BibliotecaTest
     ///CP-002-ActualizacionEstado -> Verificar actualización del estado de un préstamo en la base de datos
     /// </summary>
     [TestMethod]
+    [DoNotParallelize]
     [Description("CP-002-ActualizacionEstado: Actualización de estado de préstamos vencidos")]
     public async Task ActualizarEstadoPrestamoTest()
     {
+       
         // Arrange
         var prestamosVencidos = await _prestamoRepository.ObtenerPrestamosVencidosAsync();
         Assert.IsTrue(prestamosVencidos.Any(), "Deben existir préstamos vencidos para la prueba");
@@ -200,9 +215,12 @@ public class BibliotecaTest
     /// CP-003-RegistroTrazabilidad -> Verificar registro de trazabilidad en la base de datos
     /// </summary>
     [TestMethod]
+    [DoNotParallelize]
     [Description("CP-003-RegistroTrazabilidad: Registro en Trazabilidad de operaciones")]
     public async Task RegistrarTrazabilidadTest()
     {
+       
+
         // Arrange
         var prestamosVencidos = await _prestamoRepository.ObtenerPrestamosVencidosAsync();
         Assert.IsTrue(prestamosVencidos.Any(), "Deben existir préstamos vencidos para la prueba");
@@ -261,10 +279,11 @@ public class BibliotecaTest
     /// CP-004-ActualizacionInventario -> Actualización automática del inventario(disponibilidad) de libros
     /// </summary>
     [TestMethod]
+    [DoNotParallelize]
     [Description("CP-004-ActualizacionInventario: Actualización automática del inventario de libros")]
     public async Task ActualizarInventarioTest()
     {
-
+   
         // Arrange - Obtener estado inicial de algunos libros
         Dictionary<int, int> copiasInicialesPorLibro = new Dictionary<int, int>();
 
@@ -365,9 +384,12 @@ public class BibliotecaTest
     /// CP-005-ReportesDiarios-> Generación automática de reportes diarios
     /// </summary>
     [TestMethod]
+    [DoNotParallelize]
     [Description("CP-005-ReportesDiarios: Generación automática de reportes diarios")]
     public async Task GenerarReporteDiarioTest()
     {
+      
+
         // Arrange - Limpiar y poblar datos de prueba
         using (var connection = new SqlConnection(_connectionString))
         {
