@@ -119,8 +119,8 @@ public class BibliotecaTest
     [TestCleanup]
     public void Cleanup()
     {
-        _tokenSource.Cancel();
         _tokenSource.Dispose();
+            _tokenSource = new CancellationTokenSource();
     }
 
     #region -- Métodos --
